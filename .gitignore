@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+data/raw/
+data/processed/
+models/*.keras
+models/*.json
+results/*.png
+results/*.csv
