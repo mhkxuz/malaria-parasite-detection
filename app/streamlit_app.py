@@ -3,12 +3,17 @@ Patient-Independent Malaria Parasite Detection — Streamlit Research Applicatio
 """
 
 import os
+import sys
 from pathlib import Path
 from typing import Optional
 import numpy as np
 import pandas as pd
 from PIL import Image
 import streamlit as st
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 # Setup headless environments and suppress low-level logs
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
@@ -46,7 +51,6 @@ from app.ui_components import (
     render_prediction_badge,
 )
 
-ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = ROOT / "results"
 SAMPLES_DIR = ROOT / "app/sample_images"
 
