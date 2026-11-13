@@ -1,24 +1,25 @@
-
 # Research Methodology
 
 ## 1. Research Design
 
-This project follows an experimental comparative research design to investigate deep learning approaches for automated malaria parasite detection.
+This project followed an experimental comparative research design to investigate deep learning approaches for automated malaria parasite detection from microscopic red blood cell images.
 
-Two convolutional neural network architectures will be developed and evaluated:
+Two convolutional neural network architectures were implemented and evaluated:
 
 1. Custom Convolutional Neural Network (CNN).
 2. MobileNetV2 using transfer learning.
 
-Both models will perform binary classification of microscopic red blood cell images into parasitized and uninfected categories.
+Both models performed binary classification of segmented red blood cell images into two categories: Parasitized and Uninfected.
 
-The experiments will use patient-independent data partitions to evaluate generalization to previously unseen patients.
+A patient-independent evaluation strategy was adopted to assess model performance on images originating from patients not represented in the corresponding training or validation partitions.
+
+The study also incorporated Gradient-weighted Class Activation Mapping (Grad-CAM) to qualitatively examine model activation patterns.
 
 ## 2. Dataset Acquisition
 
 ### 2.1 Dataset Source
 
-The project will use the NIH Malaria Cell Images Dataset published by the National Library of Medicine.
+The project used the NIH Malaria Cell Images Dataset published by the National Library of Medicine.
 
 Official source:
 
@@ -32,278 +33,310 @@ https://doi.org/10.7717/peerj.4568
 
 ### 2.2 Dataset Characteristics
 
-The dataset contains 27,558 segmented red blood cell images.
+The dataset contains 27,558 segmented red blood cell images belonging to two equally represented classes.
 
 | Class | Number of Images |
 |---|---:|
 | Parasitized | 13,779 |
 | Uninfected | 13,779 |
-| Total | 27,558 |
+| **Total** | **27,558** |
 
-The images represent two categories:
+The two categories are:
 
-- Parasitized: Red blood cells containing malaria parasites.
-- Uninfected: Red blood cells without visible malaria parasites.
+- **Parasitized:** Red blood cell images containing malaria parasites.
+- **Uninfected:** Red blood cell images without visible malaria parasites.
 
 ### 2.3 Patient Mapping
 
-The original NIH dataset provides patient-to-cell mapping CSV files.
+The original NIH dataset provides patient-to-cell mapping CSV files for both image categories.
 
-These mappings will be used to associate individual images with their originating patient identifiers.
+These mapping files were used to associate each image with its originating patient identifier.
 
-The mapping files will be examined to establish:
+The mapping audit established:
 
-- Available patient identifiers.
-- Image-to-patient associations.
-- Duplicate mapping records.
-- Missing image associations.
-- Patient distribution across both classes.
+- 151 patient identifiers in the Parasitized mapping.
+- 201 patient identifiers in the Uninfected mapping.
+- 151 patient identifiers shared between the two categories.
+- 201 unique patient identifiers across the complete dataset.
 
-Patient identifiers will be normalized before grouping.
+All 27,558 images were successfully associated with patient identifiers. The mapping validation also checked for duplicate records, missing image associations and unmapped images.
 
-Images whose patient associations cannot be reliably reconstructed will not silently be assigned arbitrary patient identifiers.
-
-If mapping completeness is insufficient, the limitation will be documented before proceeding with patient-independent evaluation.
+Patient identifiers were used as grouping variables during data partitioning to prevent images from the same patient from appearing in multiple partitions.
 
 ## 3. Exploratory Data Analysis
 
-Before model development, exploratory data analysis will be conducted.
+Exploratory data analysis was conducted before model development.
 
-The following characteristics will be investigated:
+The analysis examined:
 
 1. Total number of images.
-2. Distribution of images across classes.
+2. Distribution of images across the two classes.
 3. Image dimensions and color channels.
-4. Pixel intensity distribution.
-5. Representative images from both classes.
-6. Number of unique patients.
-7. Number of images associated with each patient.
-8. Patient-level class distribution.
+4. Representative images from both classes.
+5. Number of unique patients.
+6. Number of images associated with each patient.
+7. Patient-level class distribution.
 
-Visualizations will be generated using Matplotlib.
+Matplotlib was used to generate visualizations and inspect representative samples.
 
-The analysis will help identify inconsistencies and inform preprocessing decisions.
+The analysis confirmed that the dataset contained an equal number of images in each class and that patient mapping metadata was available for patient-independent partitioning.
 
 ## 4. Patient-Independent Data Partitioning
 
 ### 4.1 Motivation
 
-Random image-level splitting can introduce data leakage when images originating from the same patient occur in multiple partitions.
+Random image-level splitting can introduce data leakage when images originating from the same patient appear in multiple partitions.
 
-Images from the same patient may share visual characteristics and acquisition conditions.
+Images from the same patient may share visual characteristics and acquisition conditions. Consequently, an image-level split can produce overly optimistic evaluation results.
 
-This can result in overly optimistic evaluation metrics.
-
-To reduce this risk, the project will use patient-level grouping.
+To reduce this risk, the project used patient-level grouping during dataset partitioning.
 
 ### 4.2 Partition Strategy
 
-The target partition proportions are:
+The dataset was divided into training, validation and testing partitions using an approximate 60/20/20 image distribution.
 
-| Partition | Target proportion |
-|---|---:|
-| Training | 70% |
-| Validation | 15% |
-| Testing | 15% |
+| Partition | Images | Patients | Approximate Proportion |
+|---|---:|---:|---:|
+| Training | 16,544 | 120 | 60% |
+| Validation | 5,517 | 41 | 20% |
+| Testing | 5,497 | 40 | 20% |
+| **Total** | **27,558** | **201** | **100%** |
 
-These are approximate image-count targets. Actual proportions may differ because patients, rather than individual images, are assigned to partitions.
+The actual proportions were determined by assigning complete patient groups rather than individual images.
 
 ### 4.3 Grouping Procedure
 
-1. Associate every image with its verified patient identifier.
-2. Group images using patient identifiers.
-3. Assign entire patient groups to training, validation or testing.
-4. Ensure that no patient appears in more than one partition.
-5. Examine class distributions in each partition.
-6. Adjust the group assignment if necessary without compromising patient separation.
+The partitioning procedure was implemented using `StratifiedGroupKFold` from scikit-learn.
 
-A group-aware splitting strategy from scikit-learn will be used.
+The following procedure was used:
+
+1. Every image was associated with its verified patient identifier.
+2. Patient identifiers were used as group labels.
+3. An outer `StratifiedGroupKFold` split with five folds, shuffling enabled and random seed 42 was used to reserve the test partition.
+4. The remaining development data was divided into training and validation partitions using a second `StratifiedGroupKFold` split with four folds, shuffling enabled and random seed 42.
+5. Class distributions were examined across the resulting partitions.
+
+Stratification was used to maintain reasonably balanced class distributions while preserving patient-level separation.
 
 ### 4.4 Leakage Verification
 
-The following conditions must hold:
+The implementation programmatically verified that:
 
-- Training and validation patient sets must be disjoint.
-- Training and testing patient sets must be disjoint.
-- Validation and testing patient sets must be disjoint.
+- Training and validation patient sets were disjoint.
+- Training and testing patient sets were disjoint.
+- Validation and testing patient sets were disjoint.
 
-The implementation must programmatically verify these conditions.
+The resulting partitions contained 120 training patients, 41 validation patients and 40 testing patients, with no patient overlap.
 
-Image paths must also be checked for duplicates across partitions.
-
-If patient-level grouping cannot be established reliably, the experiment must be reported as limited rather than presented as patient-independent evaluation.
+The same saved partition assignments were used for both model experiments to ensure a consistent comparison.
 
 ## 5. Image Preprocessing
 
-All images will undergo a consistent preprocessing pipeline.
+All images were processed using a consistent input pipeline implemented with TensorFlow.
 
 ### 5.1 Image Resizing
 
-Images will be resized to 224 × 224 pixels to support the MobileNetV2 architecture.
+All images were resized to **128 × 128 pixels** with three RGB color channels.
+
+The resulting input shape for both architectures was:
+
+`128 × 128 × 3`
 
 ### 5.2 Normalization
 
-Pixel values will be converted to floating-point representations.
+Images were decoded as RGB and converted to floating-point representations.
 
-The custom CNN will use pixel normalization to the [0, 1] range.
+The normalization strategy depended on the model architecture:
 
-MobileNetV2 will use its corresponding preprocessing function, which scales pixel values to the range [-1, 1].
+- **Custom CNN:** Pixel values were rescaled from the original range [0, 255] to [0, 1] using a Keras Rescaling layer with a scale factor of 1/255.
+- **MobileNetV2:** Pixel values were rescaled from [0, 255] to [-1, 1] using a scale factor of 1/127.5 and an offset of -1.
 
-### 5.3 Data Augmentation
+### 5.3 Data Pipeline
 
-Training images may undergo:
+The TensorFlow data pipeline performed the following operations:
 
-- Random horizontal flipping.
-- Random vertical flipping.
-- Small rotations.
-- Limited zoom transformations.
+1. Read image paths and labels from the saved dataset partitions.
+2. Decode PNG images into RGB format.
+3. Resize images to 128 × 128 pixels.
+4. Convert image data to `float32`.
+5. Apply training-data shuffling.
+6. Batch images using a batch size of 32.
+7. Prefetch batches using TensorFlow's `AUTOTUNE` mechanism.
 
-Augmentation will be applied only to training data.
+No data augmentation was applied during the reported experiments. Validation and testing images underwent deterministic preprocessing.
 
-Validation and testing images will retain deterministic preprocessing.
-
-No test images will be used for augmentation, training or hyperparameter selection.
+The same image partitions and input resolution were used for both models.
 
 ## 6. Model Architecture 1: Custom CNN
 
-A custom Convolutional Neural Network will be designed and implemented using TensorFlow/Keras.
+A custom Convolutional Neural Network was designed and implemented using TensorFlow/Keras.
 
-The architecture will contain:
+The model learned image features directly from the training dataset without pretrained image-classification weights.
 
-1. Input layer.
-2. Convolutional layers.
-3. ReLU activation functions.
-4. Max-pooling layers.
-5. Batch normalization where appropriate.
-6. Dropout for regularization.
-7. Flattening or global average pooling.
-8. Fully connected classification layers.
-9. Sigmoid output layer.
+### 6.1 Architecture
 
-Binary cross-entropy will be used as the loss function.
+The architecture consisted of the following components:
 
-The Adam optimizer will be used for training.
+1. Input layer accepting images of shape 128 × 128 × 3.
+2. Rescaling layer to normalize pixel values to [0, 1].
+3. Four convolutional blocks containing 16, 32, 64 and 128 filters respectively.
+4. Each convolutional layer used a 3 × 3 kernel with same padding and no bias term.
+5. Batch normalization and ReLU activation followed each convolutional layer.
+6. Max-pooling was applied after the first three convolutional blocks.
+7. Global Average Pooling reduced the final feature maps.
+8. A Dropout layer with a rate of 0.4 was applied.
+9. A fully connected Dense layer containing 64 neurons with ReLU activation.
+10. A second Dropout layer with a rate of 0.3.
+11. A final Dense layer with one neuron and sigmoid activation for binary classification.
 
-The model will learn visual features directly from the training dataset without pretrained image-classification weights.
+The model used binary cross-entropy as its loss function and Adam as its optimizer.
+
+The initial learning rate was set to 0.001.
 
 ## 7. Model Architecture 2: MobileNetV2
 
-MobileNetV2 will be implemented using TensorFlow/Keras and ImageNet pretrained weights.
+MobileNetV2 was implemented using TensorFlow/Keras with ImageNet-pretrained weights.
 
 MobileNetV2 uses inverted residual blocks and depthwise separable convolutions to reduce computational complexity.
 
 ### 7.1 Transfer Learning
 
-The pretrained convolutional base will initially be frozen.
+The MobileNetV2 architecture was initialized using ImageNet-pretrained weights with `include_top=False`.
 
-A new binary classification head will be attached to the feature extractor.
+The pretrained convolutional base was frozen during training. Its weights were not updated.
+
+The base model was called with `training=False` to maintain inference behavior within the frozen feature extractor.
 
 ### 7.2 Fine-Tuning
 
-Where computationally feasible, selected upper layers will subsequently be unfrozen and fine-tuned using a lower learning rate.
+Fine-tuning was not performed in the reported experiment.
 
-Batch normalization layers will be handled carefully during fine-tuning.
+The pretrained convolutional base remained frozen throughout training. The experiment therefore evaluated feature extraction using pretrained ImageNet representations followed by a newly trained classification head.
 
 ### 7.3 Classification Head
 
-The classification head will include:
+The classification head consisted of:
 
-- Global average pooling.
-- Dropout.
-- Dense output layer.
+- Global Average Pooling.
+- Dropout with a rate of 0.3.
+- Dense output layer with one neuron.
 - Sigmoid activation.
 
-The model will use binary cross-entropy and the Adam optimizer.
+The model used binary cross-entropy and the Adam optimizer with an initial learning rate of 0.001.
 
 ## 8. Training Configuration
 
-Both architectures will use a reproducible training configuration.
+Both architectures were trained using the same dataset partitions and a consistent experimental setup.
 
-Initial experimental settings:
+| Parameter | Custom CNN | MobileNetV2 |
+|---|---|---|
+| Input resolution | 128 × 128 | 128 × 128 |
+| Batch size | 32 | 32 |
+| Optimizer | Adam | Adam |
+| Initial learning rate | 0.001 | 0.001 |
+| Loss function | Binary cross-entropy | Binary cross-entropy |
+| Maximum epochs | 4 | 4 |
+| Random seed for partitioning | 42 | 42 |
+| Early stopping | Enabled | Enabled |
+| Model checkpointing | Enabled | Enabled |
+| Learning-rate reduction | Enabled | Enabled |
+| Pretrained weights | No | ImageNet |
+| Fine-tuning | Not applicable | Not performed |
 
-| Parameter | Configuration |
-|---|---|
-| Input resolution | 224 × 224 |
-| Batch size | 16 or 32, depending on memory |
-| Optimizer | Adam |
-| Loss | Binary cross-entropy |
-| Epochs | Up to 15–20 |
-| Random seed | 42 |
-| Early stopping | Enabled |
-| Model checkpointing | Enabled |
+The training process used the following callbacks:
 
-The actual number of completed epochs and training configurations will be documented.
+- **ModelCheckpoint:** Saved the best-performing model checkpoint based on validation loss.
+- **EarlyStopping:** Monitored validation loss and restored the best model weights when training stopped.
+- **ReduceLROnPlateau:** Reduced the learning rate by a factor of 0.5 when validation loss stopped improving, subject to a minimum learning rate of 0.000001.
 
-Early stopping will monitor validation performance to reduce unnecessary training.
+The Custom CNN used an early-stopping patience of 3 epochs and a learning-rate reduction patience of 2 epochs.
 
-The best validation checkpoint will be retained.
+MobileNetV2 used an early-stopping patience of 2 epochs and a learning-rate reduction patience of 1 epoch.
 
-Class weights will be considered if the resulting partitions show meaningful class imbalance.
+Both models completed all four training epochs. The learning rate remained at 0.001 throughout both runs, and no learning-rate reduction was triggered.
 
-The test partition will not influence training decisions.
+Training histories were saved as JSON files for subsequent analysis and visualization.
 
 ## 9. Model Evaluation
 
-Both models will be evaluated on the same held-out test partition.
+Both models were evaluated using the same held-out test partition containing 5,497 images from 40 previously unseen patients.
 
-The following metrics will be calculated.
+The following evaluation metrics were calculated.
 
 ### 9.1 Accuracy
 
-The proportion of correctly classified images.
+The proportion of correctly classified images among all evaluated images.
 
 ### 9.2 Precision
 
-The proportion of predicted parasitized images that are actually parasitized.
+The proportion of images predicted as Parasitized that were actually Parasitized.
 
 ### 9.3 Recall
 
-The proportion of actual parasitized images correctly identified.
+The proportion of actual Parasitized images correctly identified by the model.
 
 ### 9.4 F1-Score
 
-The harmonic mean of precision and recall.
+The harmonic mean of precision and recall, providing a combined measure of both metrics.
 
-### 9.5 Confusion Matrix
+### 9.5 ROC-AUC
 
-The confusion matrix will summarize:
+The Area Under the Receiver Operating Characteristic Curve measures the model's ability to distinguish between the two classes across different classification thresholds.
+
+### 9.6 Confusion Matrix
+
+The confusion matrix was used to examine classification outcomes:
 
 - True Positives.
 - True Negatives.
 - False Positives.
 - False Negatives.
 
-Evaluation will use the same classification threshold for both models unless a different threshold is explicitly justified and selected using validation data.
+Both models used a sigmoid classification threshold of 0.5 for the reported binary predictions.
 
-Results will be presented in tables and graphical comparisons.
+Evaluation results were saved as JSON files and visualized using confusion matrices and comparative performance plots.
 
 ## 10. Comparative Analysis
 
-The custom CNN and MobileNetV2 will be compared using:
+The Custom CNN and MobileNetV2 were compared using the following metrics:
 
 - Accuracy.
 - Precision.
 - Recall.
 - F1-score.
-- Training time.
-- Model size.
-- Inference time, where measurable.
+- ROC-AUC.
+- Confusion matrix outcomes.
 
-The analysis will investigate the relative advantages of training a custom architecture and using pretrained image features.
+Training histories were also examined to compare changes in training and validation accuracy and loss across epochs.
 
-No model will be declared superior without supporting experimental results.
+The analysis investigated the relative performance of a custom architecture trained from scratch and a transfer-learning architecture using frozen ImageNet-pretrained features.
+
+Both models were evaluated on identical test data, allowing their results to be compared under the same patient-independent evaluation conditions.
+
+Conclusions were restricted to the experimental configuration and dataset used in this project.
 
 ## 11. Explainable AI Using Grad-CAM
 
-Gradient-weighted Class Activation Mapping (Grad-CAM) will be implemented to visualize image regions influencing model predictions.
+Gradient-weighted Class Activation Mapping (Grad-CAM) was implemented to visualize image regions associated with model predictions.
 
-Grad-CAM will generate heatmaps using gradients flowing into selected convolutional feature maps.
+Grad-CAM generates heatmaps using gradients flowing into selected convolutional feature maps.
 
-The visualizations will help investigate whether models focus on relevant microscopic structures when classifying blood cell images.
+For the Custom CNN, the final convolutional layer was used to generate Grad-CAM visualizations.
 
-Grad-CAM will be applied to representative correctly and incorrectly classified examples.
+The resulting feature map had dimensions of 16 × 16 × 128 and was upsampled to 128 × 128 pixels for visualization.
 
-These visualizations will be treated as qualitative explanations rather than proof of clinical reasoning.
+Grad-CAM was applied to representative examples, including:
+
+- True Positive.
+- True Negative.
+- False Positive.
+- False Negative.
+
+The visualizations were used to qualitatively examine model activation patterns and investigate how the network responded to different image regions.
+
+Grad-CAM was treated as an interpretation aid rather than proof that the model identified biologically meaningful parasite structures. In particular, activation patterns near image boundaries or corners were considered potential indications of sensitivity to image edges or background characteristics.
+
+These visualizations do not establish clinical reasoning, parasite localization accuracy or diagnostic validity.
 
 Reference:
 
@@ -313,51 +346,63 @@ https://arxiv.org/abs/1610.02391
 
 ## 12. Streamlit Application
 
-A demonstration application will be developed using Streamlit.
+A demonstration application was developed using Streamlit to provide an interactive interface for the trained Custom CNN.
 
-The application will support:
+The application supports:
 
-1. Uploading a microscopic blood cell image.
+1. Uploading a microscopic red blood cell image.
 2. Displaying the uploaded image.
-3. Running the selected trained model.
-4. Displaying the predicted class.
-5. Displaying prediction confidence.
-6. Optionally displaying a Grad-CAM visualization.
+3. Running the trained classification model.
+4. Displaying the model's predicted class.
+5. Displaying the model's prediction score.
+6. Generating Grad-CAM visualizations.
+7. Viewing model performance metrics and experimental results.
+8. Exploring representative examples from the dataset.
 
-The interface will clearly state that the system is an academic prototype and is not intended for clinical diagnosis.
+The application presents the model prediction as an experimental output rather than a medical diagnosis.
+
+It explicitly states that the system is an academic prototype and is not intended for clinical use.
 
 ## 13. Reproducibility
 
-To improve reproducibility:
+Several measures were adopted to improve experimental reproducibility:
 
-- Random seeds will be configured.
-- Dataset partitions will be saved.
-- Model configurations will be documented.
-- Training histories will be retained.
-- Trained model checkpoints will be saved.
-- Evaluation outputs will be recorded.
-- Software versions will be documented.
+- Patient-to-image mapping metadata was retained.
+- Dataset partitions were generated using a fixed random seed.
+- The resulting dataset assignments were saved.
+- Both models used the same training, validation and testing partitions.
+- Model architectures and training configurations were implemented in separate Python modules.
+- Training histories were retained as JSON files.
+- Trained model checkpoints were saved.
+- Evaluation metrics and prediction outputs were recorded.
+- Confusion matrices, learning curves and Grad-CAM visualizations were generated and retained.
+- Git was used for source-code version control.
 
-Git will be used for version control.
+The project was implemented using Python and TensorFlow/Keras, with scikit-learn used for patient-independent data partitioning and evaluation support.
 
 ## 14. Limitations
 
 The project has several limitations:
 
 1. The dataset contains segmented cell images rather than complete blood smear images.
-2. Dataset-specific performance does not guarantee generalization to other laboratories.
-3. Patient-independent evaluation depends on the completeness and correctness of the NIH mapping metadata.
-4. Limited computational resources may restrict extensive hyperparameter optimization.
-5. Grad-CAM visualizations do not establish clinical validity.
-6. Cell-level predictions cannot independently establish whether a patient has malaria.
+2. The evaluation was performed using a single publicly available dataset.
+3. Patient-independent performance within the NIH dataset does not establish generalization to other laboratories, imaging systems, staining procedures or patient populations.
+4. MobileNetV2 was evaluated using frozen pretrained features; fine-tuning was not performed.
+5. No data augmentation or extensive hyperparameter optimization was performed in the reported experiments.
+6. The computational resources available limited the scope of experimentation.
+7. Grad-CAM visualizations do not establish that the model relies on clinically meaningful features.
+8. Cell-level predictions cannot independently establish whether a patient has malaria.
+
+The test partition contained previously unseen patients from the same NIH dataset. It did not constitute external clinical validation.
 
 The system is intended for academic experimentation and demonstration, not medical diagnosis.
 
-## 15. Expected Research Contribution
+## 15. Research Contribution
 
-The project will provide an experimental comparison of a custom CNN and a transfer-learning architecture for malaria parasite detection.
+This project provides an experimental comparison between a custom CNN trained from scratch and MobileNetV2 using frozen ImageNet-pretrained features for malaria parasite classification.
 
-Its primary methodological emphasis will be patient-independent evaluation, reproducibility and explainability.
+Its primary methodological emphasis is patient-independent evaluation through patient-grouped stratified partitioning.
 
-The study will document the strengths and limitations of both approaches using experimentally obtained results.
+The study also combines quantitative model evaluation with qualitative Grad-CAM visualizations and an interactive Streamlit demonstration application.
 
+The resulting experiments document the performance and limitations of both architectures under the same dataset and evaluation conditions.

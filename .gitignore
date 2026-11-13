@@ -31,3 +31,11 @@ results/*.json
 
 # IDE
 .vscode/
+
+# Include trained model checkpoints in the public repository
+!models/*.keras
+
+# Include experiment results and visualizations
+!results/*.png
+!results/*.csv
+!results/*.json
