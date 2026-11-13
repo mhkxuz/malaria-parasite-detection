@@ -1,11 +1,31 @@
+# Python
 __pycache__/
 *.py[cod]
+*.egg-info/
+
+# Virtual environments
 .venv/
 venv/
+
+# Jupyter
 .ipynb_checkpoints/
+
+# Dataset
 data/raw/
 data/processed/
+
+# Trained models
 models/*.keras
-models/*.json
+models/*.h5
+models/*.weights.h5
+
+# Results
 results/*.png
 results/*.csv
+results/*.json
+
+# Environment variables
+.env
+
+# IDE
+.vscode/
